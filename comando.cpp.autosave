@@ -1,0 +1,492 @@
+#include "comando.h"
+
+void Comando::Mkdisk(string path, int sizeB, char unit, string fit)
+{
+    char fit_aux=0;
+    if(fit=="bf"){
+        fit_aux='B';
+    }else if(fit=="wf"){
+        fit_aux='W';
+    }else{
+        fit_aux='F';
+    }
+    switch(unit)
+    {
+    case'K':
+    case'k':
+        sizeB*=1024;
+        break;
+    case'M':
+    case'm':
+    case 0:
+        sizeB*=1024*1024;
+        break;
+    default:
+        printf("ERROR! Unidad de medida\n");
+        return;
+    }
+
+    MBR mbr=funciones.getNewMBR();
+    mbr.mbr_tamano = sizeB;
+    mbr.mbr_disk_signature =funciones.numAleatorio();
+    mbr.mbr_fecha_creacion = time(NULL);
+    mbr.disk_fit=fit_aux;
+
+    //remover el archivo anterior
+    remove(path.c_str());
+
+    FILE *ptr_file;
+    ptr_file = fopen(path.c_str(),"wb");
+    if(!ptr_file)
+    {
+        funciones.createDirs(path.c_str());
+        ptr_file = fopen(path.c_str(),"wb");
+        if(!ptr_file)
+        {
+            cout<<"ERROR mkdisk, Abrir disco: "<<path<<endl;
+            return;
+        }
+    }
+    int fin=(sizeB/1024);
+    char buffer[1024];
+    for(int i=0;i<1024;i++)
+    {
+        buffer[i]='\0';
+    }
+    int j=0;
+    while(j!=fin){
+        fwrite(&buffer,1024 , 1, ptr_file);
+        j++;
+    }
+    fclose(ptr_file);
+
+    if(funciones.escribirMBR(path,mbr)){
+        cout<<"MKDISK,  Disco creado: "<<path<<endl;
+    }else{
+        cout<<"ERROR! MKDISK, no se pudo crear el disco "<<path<<endl;
+    }
+}
+
+void  Comando::Rmdisk(string path)
+{
+    char yes[1]="";
+    cout<<"[Y/N]: ";
+    cin>>yes;
+    if((strcmp(yes,"Y") != 0) &&
+        (strcmp(yes,"y") != 0))
+        return;
+
+    if(remove(path.c_str())==-1)
+    {
+        cout<<"ERROR!,rmdisk, No existe Disco: "<<path<<endl;
+        return;
+    }
+    cout<<"RMDISk: Disco borrado: "<<path<<endl;
+}
+
+
+void Comando::Fdisk(string path, string name, int sizeB, char unit, char type, char fit){
+    MBR mbr = funciones.leerMBR(path.c_str());
+    if(mbr.mbr_tamano==0){
+        cout<<"ERROR!,fdisk, el disco no existe. "<<path<<endl;
+        return;
+    }
+    int numPart = funciones.existPartition(mbr,name);
+
+    //verificar parametros
+    if(numPart!=0){
+        cout<<"ERROR!,fdisk name, ya existe una particion con el mismo nombre: "<<name<<endl;
+        return;
+    }
+    switch(unit)
+    {
+    case'b':
+        break;
+    case'k':
+    case 0:
+        sizeB*=1024;
+        break;
+    case'm':
+        sizeB*=1024*1024;
+        break;
+    default:
+        printf("ERROR!,fdisk unit, Unidad de medida no reconocida.\n");
+        return;
+    }
+    switch(fit)
+    {
+    case'b':
+        fit = 'B';
+        break;
+    case 'f':
+        fit = 'F';
+        break;
+    case 'w':
+    case 0:
+        fit = 'W';
+        break;
+    default:
+        printf("ERROR!, fdisk fit, ajuste no reconocido.\n");
+        return;
+    }
+
+    switch(type)
+    {
+    case 'P':
+    case'p':
+    case 0:
+        type = 'P';
+        break;
+    case 'E':
+    case 'e':
+        type = 'E';
+        break;
+    case 'L':
+    case 'l':
+
+        break;
+    default:
+        printf( "ERROR!, fdisk type, Tipo no existente.\n");
+        return;
+    }
+
+    //comprobaciones
+    if(type=='L'){
+        printf( "particion logica\n");
+        return;
+    }else if(type=='E' && funciones.existExtendida(mbr)){
+            cout<<"ERROR!,fdisk , ya existe una particion extendida: "<<name<<endl;
+            return;
+    }
+    Partition *actual = funciones.partitionDisponible(&mbr);
+    if(actual==NULL){
+        cout<<"ERROR!,fdisk , ya estan utilizadas las 4 particiones primarias."<<name<<endl;
+        return;
+    }
+    vector<Espacio> espacios = funciones.obtenerEspacios(mbr);
+    int start=0;
+    if(mbr.disk_fit=='F'){
+        for(int i=0;i<espacios.size();i++){
+            if(sizeB<=espacios[i].size){
+                start=espacios[i].pos;
+                break;
+            }
+        }
+    }else if(mbr.disk_fit=='B'){
+        espacios=funciones.ascendete(espacios);
+        for(int i=0;i<espacios.size();i++){
+            if(sizeB<=espacios[i].size){
+                start=espacios[i].pos;
+                break;
+            }
+        }
+    }else if(mbr.disk_fit=='W'){
+        espacios=funciones.ascendete(espacios);
+        for(int i=espacios.size();i>0;i--){
+            if(sizeB<=espacios[i-1].size){
+                start=espacios[i-1].pos;
+                break;
+            }
+        }
+    }
+    if(start==0){
+        cout<<"ERROR!,fdisk , no hay espacio para crear la particion: "<<name<<endl;
+        return;
+    }
+
+
+    actual->part_fit=fit;
+    strcpy(actual->part_name,name.c_str());
+    actual->part_size=sizeB;
+    actual->part_start=start;
+    actual->part_status='1';
+    actual->part_type=type;
+
+
+    if(funciones.escribirMBR(path,mbr)){
+        cout<<"FDISK, se creo la particion: "<<name<<endl;
+    }else{
+        cout<<"ERROR! FDISK, no se crear la particion: "<<name<<endl;
+    }
+
+}
+
+
+void Comando::FdiskDelete(string path, string name, string deleteType){
+    MBR mbr = this->funciones.leerMBR(path.c_str());
+    if(mbr.mbr_tamano==0){
+        cout<<"ERROR!, fdisk delete, no existe el disco: "<<path<<endl;
+        return;
+    }
+    Partition *part = NULL;
+    int numPart = funciones.existPartition(mbr,name);
+    if(numPart==1){
+        part = &mbr.mbr_partition1;
+    }else if(numPart==2){
+        part = &mbr.mbr_partition2;
+    }else if(numPart==3){
+        part = &mbr.mbr_partition3;
+    }else if(numPart==4){
+        part = &mbr.mbr_partition4;
+    }else {
+        cout<<"ERROR!, fdisk delete, no existe la particion: "<<name<<endl;
+        return;
+    }
+
+    if(deleteType.compare("fast")==0){
+        part->part_status='0';
+    }else{
+        Partition aux =this->funciones.getNewPartition();
+        part->part_fit=aux.part_fit;
+        memset(part->part_name,0,sizeof(part->part_name));
+        part->part_size=aux.part_size;
+        part->part_start=aux.part_start;
+        part->part_status=aux.part_status;
+        part->part_type=aux.part_type;
+
+    }
+    if(funciones.escribirMBR(path,mbr)){
+        cout<<"FDISK, Se elimino la particion: "<<name<<endl;
+    }else{
+        cout<<"ERROR! FDISK, delete, no se puedo aumentar eliminar la particion: "<<name<<endl;
+    }
+
+}
+
+void Comando::FdiskAdd(string name, string path, char unit, int add){
+     //verificar parametros
+    MBR mbr = this->funciones.leerMBR(path.c_str());
+    if(mbr.mbr_tamano==0){
+        cout<<"ERROR!, fdisk add, no existe el disco: "<<path<<endl;
+        return;
+    }
+    Partition *part = NULL;
+    int numPart = funciones.existPartition(mbr,name);
+    if(numPart==1){
+        part = &mbr.mbr_partition1;
+    }else if(numPart==2){
+        part = &mbr.mbr_partition2;
+    }else if(numPart==3){
+        part = &mbr.mbr_partition3;
+    }else if(numPart==4){
+        part = &mbr.mbr_partition4;
+    }else {
+        cout<<"ERROR!, fdisk add, no existe la particion: "<<name<<endl;
+        return;
+    }
+    switch(unit)
+    {
+    case'b':
+        break;
+    case'k':
+    case 0:
+        add*=1024;
+        break;
+    case'm':
+        add*=1024*1024;
+        break;
+    default:
+        printf("ERROR!,fdisk unit, Unidad de medida no reconocida.\n");
+        return;
+    }
+
+
+    if(add > 0){
+        vector<Espacio> espacios = funciones.obtenerEspacios(mbr);
+        int limite = part->part_start + part->part_size;
+        bool error=true;
+        for(int i = 0; i<espacios.size();i++){
+            if(limite == espacios[i].pos){
+                int disponible=espacios[i].pos+espacios[i].size;
+                int total = limite + add;
+                if(total<=disponible){
+                    part->part_size=part->part_size+add;
+                    error=false;
+                    break;
+                }else{
+                    cout<<"ERROR!,fdisk add, no hay espacio suficiente para aumentar la particion: "<<name<<endl;
+                    return;
+                }
+            }
+        }
+        if(error){
+            cout<<"ERROR!,fdisk add, no hay espacio disponible para aumentar la particion: "<<name<<endl;
+            return;
+        }
+    }else{
+        int reduce = part->part_size + add;
+        if(reduce<=0){
+            cout<<"ERROR!,fdisk add negativo o cero, la particion: "<<name<<endl;
+            return;
+        }
+        part->part_size = reduce;
+    }
+
+    if(funciones.escribirMBR(path,mbr)){
+        cout<<"FDISK, add, se aumento el tamaño de la particion: "<<name<<endl;
+    }else{
+        cout<<"ERROR! FDISK, add, no se puedo aumentar el tamaño de la particion: "<<name<<endl;
+    }
+
+}
+
+
+void Comando::Mount(string path, string name){
+    MBR mbr = this->funciones.leerMBR(path.c_str());
+    if(mbr.mbr_tamano==0){
+        cout<<"ERROR!, mount, no existe el disco: "<<path<<endl;
+        return;
+    }
+    Partition *part = NULL;
+    int numPart = funciones.existPartition(mbr,name);
+    if(numPart==1){
+        part = &mbr.mbr_partition1;
+    }else if(numPart==2){
+        part = &mbr.mbr_partition2;
+    }else if(numPart==3){
+        part = &mbr.mbr_partition3;
+    }else if(numPart==4){
+        part = &mbr.mbr_partition4;
+    }else {
+        cout<<"ERROR!, mount, no existe la particion: "<<name<<endl;
+        return;
+    }
+
+    for(int i=0;i<20;i++)
+    {
+        if(strcmp(mountDisk[i].idDisk,path.c_str()) == 0)
+        {
+            SEARCHMOUNTID:
+            for(int j=0;j<20;j++)
+            {   if(strcmp(mountDisk[i].mountPart[j].idPart,name.c_str())==0)
+                {
+                    printf( "ERROR!, esta particion ya fue montada, id = " );
+                    printf("%s\n" ,mountDisk[i].mountPart[j].idMount);
+                    return;
+                }
+                if(strcmp(mountDisk[i].mountPart[j].idPart,"") == 0)
+                {
+                    strcat(mountDisk[i].mountPart[j].idPart,name.c_str());
+                    strcat(mountDisk[i].mountPart[j].idMount,"vd");
+                    mountDisk[i].mountPart[j].idMount[2] = static_cast<char>((97+i));
+                    char integer_string[32];
+                    int integer = j+1;
+                    sprintf(integer_string, "%d", integer);
+                    strcat(mountDisk[i].mountPart[j].idMount, integer_string);
+                    printf( "id = ");
+                    printf("%s\n" ,mountDisk[i].mountPart[j].idMount);
+                    mountDisk[i].countParts++;
+                    return;
+                }
+            }
+        }
+        int x = funciones.getDskMountIndex(path.c_str(),mountDisk);
+        if(strcmp(mountDisk[x].idDisk,path.c_str()) == 0)
+        {
+            i = x;
+            goto SEARCHMOUNTID;
+        }
+        else if(strcmp(mountDisk[i].idDisk,"") == 0)
+        {
+            strcat(mountDisk[i].idDisk,path.c_str());
+            strcat(mountDisk[i].mountPart[0].idPart,name.c_str());
+            strcat(mountDisk[i].mountPart[0].idMount,"vd");
+            mountDisk[i].mountPart[0].idMount[2] = static_cast<char>(97+i);
+            strcat(mountDisk[i].mountPart[0].idMount,"1");
+            printf( "id = ");
+            printf("%s\n" ,mountDisk[i].mountPart[0].idMount);
+            mountDisk[i].countParts = 1;
+            return;
+        }
+    }
+}
+
+void Comando::UnMountPartition(const char* id)
+{
+    for(int i=0;i<20;i++)
+    {
+        for(int j=0;j<20;j++)
+        {
+            if(strcmp(mountDisk[i].mountPart[j].idMount,id) == 0)
+            {
+                memset(mountDisk[i].mountPart[j].idMount,0
+                       , sizeof(mountDisk[i].mountPart[j].idMount));
+                memset(mountDisk[i].mountPart[j].idPart,0
+                       , sizeof(mountDisk[i].mountPart[j].idPart));
+                mountDisk[i].countParts--;
+                if(mountDisk[i].countParts <= 0)
+                {
+                    memset(mountDisk[i].idDisk,0
+                           , sizeof(mountDisk[i].idDisk));
+                    mountDisk[i].countParts = 0;
+                }
+                return;
+            }
+        }
+    }
+    cout<<"ERROR!,unmount, No existe particion con este id: "<<id<<endl;
+}
+
+void Comando::Rep(string id, string path, string name){
+    MountDisk mounD = funciones.existIdPartMount(id,mountDisk);
+    if(strcmp(mounD.idDisk,"") == 0){
+        cout<<"ERROR!, reporte, no esta montada la particion: "<<id<<endl;
+        return;
+    }
+    if(name.compare("mbr")==0){
+        reporte.RepMbr(mounD.idDisk,path.c_str());
+        cout<<"Se creo el reporte mbr, de la particion: "<<id<<endl;
+    }else if(name.compare("disk")==0){
+        reporte.RepDisk(mounD.idDisk,path.c_str());
+        cout<<"Se creo el reporte disk, de la particion: "<<id<<endl;
+    }else{
+        cout<<"ERROR!, reporte, no existe ese  reporte."<<endl;
+    }
+}
+
+void Comando::mkfs(string id, string type){
+    string partName;
+    string path = funciones.getPathByID(id.c_str(),&partName,mountDisk);
+    if(path.compare("")==0){
+        cout<<"ERROR!, mkfs, no encuentra el disco asociado al id: "<<id<<endl;
+        return;
+    }
+    MBR mbr = funciones.leerMBR(path.c_str());
+    if(mbr.mbr_tamano==0){
+        cout<<"ERROR!, mkfs, no encontro el disco: "<<path<<endl;
+        return;
+    }
+    Partition* part=funciones.get_partition_name(&mbr,partName);
+    if(part==NULL){
+        cout<<"ERROR!, mkfs, no encontro la particion solicitada: "<<partName<<endl;
+        return;
+    }
+    int n = funciones.numEstructuras(part->part_size);
+    Superbloque superbloque;
+    superbloque.s_inodes_count=n;
+    superbloque.s_blocks_count=3*n;
+    superbloque.s_free_blocks_count=3*n;
+    superbloque.s_free_inodes_count=n;
+    superbloque.s_mtime=time(NULL);
+    superbloque.s_umtime=0;
+    superbloque.s_mnt_count=1;
+    superbloque.s_magic=0xEF53;
+    superbloque.s_inode_size=sizeof(Inodo);
+    superbloque.s_block_size=sizeof(Barchivo);
+
+    superbloque.s_bm_inode_start=part->part_start+sizeof(Superbloque)+sizeof(Journaling)*n;
+    superbloque.s_bm_block_start=superbloque.s_bm_inode_start + n;
+    superbloque.s_inode_start=superbloque.s_bm_block_start + n*3;
+    superbloque.s_block_start=  superbloque.s_inode_start + sizeof(Inodo)*n;
+
+    superbloque.s_firts_ino=superbloque.s_inode_start;
+    superbloque.s_first_blo=superbloque.s_block_start;
+    
+    
+     
+    
+
+
+
+
+}
