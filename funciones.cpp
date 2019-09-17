@@ -3,7 +3,33 @@
 Funciones::Funciones(){
     numAl=0;
 }
-
+string Funciones::convertToString(char* a, int size)
+{
+    int i;
+    string s = "";
+    for (i = 0; i < size; i++) {
+        s = s + a[i];
+    }
+    return s;
+}
+StringVector Funciones::Explode(const std::string & str, char separator )
+{
+   StringVector  result;
+   size_t pos1 = 0;
+   size_t pos2 = 0;
+   while ( pos2 != str.npos )
+   {
+      pos2 = str.find(separator, pos1);
+      if ( pos2 != str.npos )
+      {
+         if ( pos2 > pos1 )
+            result.push_back( str.substr(pos1, pos2-pos1) );
+         pos1 = pos2+1;
+      }
+   }
+   result.push_back( str.substr(pos1, str.size()-pos1) );
+   return result;
+}
 int Funciones::numAleatorio(){
     numAl++;
     srand(time(NULL));
@@ -347,4 +373,239 @@ int Funciones::numEstructuras(int size_t){
     return floor(num);
 }
 
+void Funciones::setBitMapsInicio(int n,int posI_inodo,int posI_bloque,string path){
+    FILE *ptr_file;
+    ptr_file = fopen(path.c_str(),"rb+");
+    if(!ptr_file)
+    {
+        return;
+    }
+    char bitmap_inodos[n];
+    memset(bitmap_inodos,'0',sizeof bitmap_inodos);
+    char bitmap_bloques[3*n];
+    memset(bitmap_bloques,'0',sizeof(bitmap_bloques));
 
+    fseek(ptr_file,posI_inodo,SEEK_SET);
+    fwrite(&bitmap_inodos,sizeof(bitmap_inodos),1,ptr_file);
+
+    fseek(ptr_file,posI_bloque,SEEK_SET);
+    fwrite(&bitmap_bloques,sizeof(bitmap_bloques),1,ptr_file);
+
+
+    fclose(ptr_file);
+}
+
+
+void Funciones::getBitmap(int n,const char* location, int posInicial,char* bitmap)
+{
+    char bitmapLoc[n]; memset(bitmapLoc,0,sizeof bitmapLoc);
+    FILE *ptr_file;
+    ptr_file = fopen(location,"rb");
+    if(!ptr_file)
+    {
+        strcpy(bitmap,bitmapLoc);
+        return;
+    }
+    if(fseek(ptr_file,posInicial,SEEK_SET)!=0)
+    {
+        strcpy(bitmap,bitmapLoc);
+        return;
+    }
+    fread(&bitmapLoc,n,1,ptr_file);
+    rewind(ptr_file);
+    fclose(ptr_file);
+    strcpy(bitmap,bitmapLoc);
+    return;
+}
+
+Superbloque Funciones::getSuperbloque(string path,string partName){
+    Superbloque superBloque;
+    struct MBR mbr = leerMBR(path.c_str());
+    if(mbr.mbr_tamano==0)
+        return superBloque;
+    Partition *partition = get_partition_name(&mbr,partName);
+    if(partition==NULL)
+        return superBloque;
+
+
+    FILE *ptr_file;
+    ptr_file = fopen(path.c_str(),"rb");
+    if(!ptr_file)
+    {
+        return superBloque;
+    }
+    if(fseek(ptr_file,partition->part_start,SEEK_SET)!=0)
+    {
+        return superBloque;
+    }
+    fread(&superBloque,sizeof(Superbloque),1,ptr_file);
+    rewind(ptr_file);
+    fclose(ptr_file);
+    return superBloque;
+}
+
+void Funciones::setSuperbloque(string path,Superbloque superbloque,int pos){
+    FILE *ptr_file;
+    ptr_file = fopen(path.c_str(),"rb+");
+    if(!ptr_file)
+    {
+        return;
+    }
+    fseek(ptr_file,pos,SEEK_SET);
+    fwrite(&superbloque,sizeof(superbloque),1,ptr_file);
+    fclose(ptr_file);
+}
+
+bool Funciones::formatearTabla_inodos_bloques(string path,Superbloque superbloque){
+    FILE *ptr_file;
+    ptr_file = fopen(path.c_str(),"rb+");
+    if(!ptr_file)
+    {
+        return false;
+    }
+    char val='\0';
+    int count;
+    int posIni = superbloque.s_inode_start;
+    count = posIni;
+    int posIniBloque =superbloque.s_block_start ;
+    int posFin = posIniBloque + (sizeof(Barchivo)*superbloque.s_blocks_count);
+
+    fseek(ptr_file,posIni,SEEK_SET);
+
+    while(true){
+        if(count>=posIniBloque)
+            break;
+        fwrite(&val,sizeof(val),sizeof(Inodo),ptr_file);
+        count++;
+    }
+
+    while(true){
+        if(count>posFin)
+            break;
+        fwrite(&val,sizeof(val),sizeof(Barchivo),ptr_file);
+        count++;
+    }
+    fclose(ptr_file);
+    return true;
+}
+
+bool Funciones::ingresarInodo(string path, Inodo inodo, int pos, int num){
+    FILE *ptr_file;
+    ptr_file = fopen(path.c_str(),"rb+");
+    if(!ptr_file)
+    {
+        return false;
+    }
+    pos+= num*sizeof(Inodo);
+    fseek(ptr_file,pos,SEEK_SET);
+    fwrite(&inodo,sizeof(inodo),1,ptr_file);
+    fclose(ptr_file);
+
+    return true;
+}
+
+bool Funciones::ingresar_bitmap(string path, int pos, int num){
+    FILE *ptr_file;
+    ptr_file = fopen(path.c_str(),"rb+");
+    if(!ptr_file)
+    {
+        return false;
+    }
+    char val='1';
+    pos+=num;
+    fseek(ptr_file,pos,SEEK_SET);
+    fwrite(&val,sizeof(val),1,ptr_file);
+    fclose(ptr_file);
+    return true;
+}
+
+
+bool Funciones::ingresarBloqueCarpeta(string path, Bcarpeta carpeta, int pos, int num){
+    FILE *ptr_file;
+    ptr_file = fopen(path.c_str(),"rb+");
+    if(!ptr_file)
+    {
+        return false;
+    }
+    pos+= num*sizeof(Bcarpeta);
+    fseek(ptr_file,pos,SEEK_SET);
+    fwrite(&carpeta,sizeof(carpeta),1,ptr_file);
+    fclose(ptr_file);
+    return true;
+}
+
+bool Funciones::ingresarBloqueArchivo(string path, Barchivo carpeta, int pos, int num){
+    FILE *ptr_file;
+    ptr_file = fopen(path.c_str(),"rb+");
+    if(!ptr_file)
+    {
+        return false;
+    }
+    pos+= num*sizeof(Barchivo);
+    fseek(ptr_file,pos,SEEK_SET);
+    fwrite(&carpeta,sizeof(carpeta),1,ptr_file);
+    fclose(ptr_file);
+    return true;
+}
+
+Bcarpeta Funciones::getBcarpeta(string path,int pos, int num){
+    Bcarpeta carpeta;
+    FILE *ptr_file;
+    ptr_file = fopen(path.c_str(),"rb");
+    if(!ptr_file)
+    {
+        return carpeta;
+    }
+    pos+= num*sizeof(Bcarpeta);
+
+    if(fseek(ptr_file,pos,SEEK_SET)!=0)
+    {
+        return carpeta;
+    }
+    fread(&carpeta,sizeof(Bcarpeta),1,ptr_file);
+    fclose(ptr_file);
+    fclose(ptr_file);
+    return carpeta;
+}
+Barchivo Funciones::getBarchivo(string path,int pos, int num){
+    Barchivo carpeta;
+    FILE *ptr_file;
+    ptr_file = fopen(path.c_str(),"rb+");
+    if(!ptr_file)
+    {
+        return carpeta;
+    }
+    pos+= num*sizeof(Barchivo);
+    fseek(ptr_file,pos,SEEK_SET);
+    fread(&carpeta,sizeof(Barchivo),1,ptr_file);
+    fclose(ptr_file);
+    return carpeta;
+}
+Bapuntador Funciones::getBapuntador(string path,int pos, int num){
+    Bapuntador carpeta;
+    FILE *ptr_file;
+    ptr_file = fopen(path.c_str(),"rb+");
+    if(!ptr_file)
+    {
+        return carpeta;
+    }
+    pos+= num*sizeof(Bapuntador);
+    fseek(ptr_file,pos,SEEK_SET);
+    fread(&carpeta,sizeof(Bapuntador),1,ptr_file);
+    fclose(ptr_file);
+    return carpeta;
+}
+Inodo Funciones::getInode(string path,int pos, int num){
+    Inodo inodo;
+    FILE *ptr_file;
+    ptr_file = fopen(path.c_str(),"rb+");
+    if(!ptr_file)
+    {
+        return inodo;
+    }
+    pos+= num*sizeof(Inodo);
+    fseek(ptr_file,pos,SEEK_SET);
+    fread(&inodo,sizeof(Inodo),1,ptr_file);
+    fclose(ptr_file);
+    return inodo;
+}

@@ -2,6 +2,7 @@
 #define LIBRERIAS_H
 
 #include <iostream>
+#include <fstream>
 #include <ctype.h>
 #include <string.h>
 #include <stdio.h>
@@ -14,5 +15,5 @@
 #include<vector>
 #include <stdio_ext.h>
 using namespace std;
-
+typedef std::vector<std::string>  StringVector;
 #endif // LIBRERIAS_H

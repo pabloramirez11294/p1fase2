@@ -9,6 +9,8 @@ public:
     Funciones funciones;
     MountDisk mountDisk[20];
     Reporte reporte;
+    Log_usuario log_usuario;
+    vector<Usuario> lista_u;
     //funciones
     void Mkdisk(string path, int sizeB, char unit, string fit);
     void Rmdisk(string path);
@@ -19,6 +21,7 @@ public:
     void UnMountPartition(const char* id);
     void Rep(string id,string path,string name);
     void mkfs(string id, string type);
+    void login(string id,string usr,string pwd);
 };
 
 #endif // COMANDO_H

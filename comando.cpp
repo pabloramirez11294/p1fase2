@@ -439,6 +439,18 @@ void Comando::Rep(string id, string path, string name){
     }else if(name.compare("disk")==0){
         reporte.RepDisk(mounD.idDisk,path.c_str());
         cout<<"Se creo el reporte disk, de la particion: "<<id<<endl;
+    }else if(name.compare("bm_inode")==0){
+        reporte.RepBm(mounD.idDisk,path.c_str(),id,mountDisk,true);
+        cout<<"Se creo el reporte bm_inode, de la particion: "<<id<<endl;
+    }else if(name.compare("bm_block")==0){
+        reporte.RepBm(mounD.idDisk,path.c_str(),id,mountDisk,false);
+        cout<<"Se creo el reporte bm_block, de la particion: "<<id<<endl;
+    }else if(name.compare("block")==0){
+        reporte.RepBlock(mounD.idDisk,path.c_str(),id,mountDisk);
+        cout<<"Se creo el reporte block, de la particion: "<<id<<endl;
+    }else if(name.compare("inode")==0){
+        reporte.RepInode(mounD.idDisk,path.c_str(),id,mountDisk);
+        cout<<"Se creo el reporte inode, de la particion: "<<id<<endl;
     }else{
         cout<<"ERROR!, reporte, no existe ese  reporte."<<endl;
     }
@@ -465,8 +477,8 @@ void Comando::mkfs(string id, string type){
     Superbloque superbloque;
     superbloque.s_inodes_count=n;
     superbloque.s_blocks_count=3*n;
-    superbloque.s_free_blocks_count=3*n;
-    superbloque.s_free_inodes_count=n;
+    superbloque.s_free_blocks_count=(3*n)-1;
+    superbloque.s_free_inodes_count=n-1;
     superbloque.s_mtime=time(NULL);
     superbloque.s_umtime=0;
     superbloque.s_mnt_count=1;
@@ -481,10 +493,142 @@ void Comando::mkfs(string id, string type){
 
     superbloque.s_firts_ino=superbloque.s_inode_start;
     superbloque.s_first_blo=superbloque.s_block_start;
-    
-    
+    funciones.setSuperbloque(path,superbloque,part->part_start);
+    funciones.setBitMapsInicio(n,superbloque.s_bm_inode_start,superbloque.s_bm_block_start,path);
 
 
+    //formateo fast o full
+    if(type.compare("full")==0){
+        if(!funciones.formatearTabla_inodos_bloques(path,superbloque)){
+            cout<<"ERROR!,MKFS full no se pudo formatear la tabla indodos o tablo bloque, particion: "<<partName<<endl;
+        }
+    }
+
+
+    //crear inodo y carpeta raiz
+
+    Inodo raiz;
+    raiz.i_uid=1;
+    raiz.i_gid=1;
+    raiz.i_size=0;
+    raiz.i_atime=0;
+    raiz.i_ctime=time(NULL);
+    raiz.i_mtime=0;
+    memset(raiz.i_block,-1,sizeof raiz.i_block);
+    raiz.i_block[0]=0;
+    raiz.i_type=0;
+    raiz.i_perm=770;
+
+    if(!(funciones.ingresarInodo(path,raiz,superbloque.s_inode_start,0) && funciones.ingresar_bitmap(path,superbloque.s_bm_inode_start,0))){
+        cout<<"ERROR!,MKFS no se pudo ingresar el inodo: raiz"<<endl;
+        return;
+    }
+
+    Bcarpeta c_raiz;
+    strcpy(c_raiz.b_content[0].name,".");
+    c_raiz.b_content[0].b_inodo=0;
+
+    strcpy(c_raiz.b_content[1].name,"..");
+    c_raiz.b_content[1].b_inodo=0;
+
+    strcpy(c_raiz.b_content[2].name,"users.txt");
+    c_raiz.b_content[2].b_inodo=1;
+
+    strcpy(c_raiz.b_content[3].name,"-");
+    c_raiz.b_content[3].b_inodo=-1;
+
+    if(!(funciones.ingresarBloqueCarpeta(path,c_raiz,superbloque.s_block_start,0) && funciones.ingresar_bitmap(path,superbloque.s_bm_block_start,0))){
+        cout<<"ERROR!,MKFS no se pudo ingresar el bloque carpeta: raiz"<<endl;
+        return;
+    }
+
+    //crear inodo y bloque users.txt
+    Inodo i_users;
+    i_users.i_uid=1;
+    i_users.i_gid=1;
+    i_users.i_size=27;
+    i_users.i_atime=0;
+    i_users.i_ctime=time(NULL);
+    i_users.i_mtime=0;
+    memset(i_users.i_block,-1,sizeof i_users.i_block);
+    i_users.i_block[0]=1;
+    i_users.i_type=1;
+    i_users.i_perm=770;
+
+    if(!(funciones.ingresarInodo(path,i_users,superbloque.s_inode_start,1) && funciones.ingresar_bitmap(path,superbloque.s_bm_inode_start,1))){
+        cout<<"ERROR!,MKFS no se pudo ingresar el inodo: users.txt"<<endl;
+        return;
+    }
+    Barchivo b_users;
+    strcpy(b_users.b_content,"1,G,root\n1,U,root,root,123\n");
+    if(!(funciones.ingresarBloqueArchivo(path,b_users,superbloque.s_block_start,1) && funciones.ingresar_bitmap(path,superbloque.s_bm_block_start,1))){
+        cout<<"ERROR!,MKFS no se pudo ingresar el bloque archivo: users.txt"<<endl;
+        return;
+    }
+
+
+
+
+
+    cout<<"MKFS full exitoso, particion: "<<partName<<endl;
+
+
+}
+
+void Comando::login(string id, string usr, string pwd){
+    string partName;
+    string path = funciones.getPathByID(id.c_str(),&partName,mountDisk);
+    if(path.compare("")==0){
+        cout<<"ERROR!, login, no encuentra el disco asociado al id: "<<id<<endl;
+        return;
+    }
+    MBR mbr = funciones.leerMBR(path.c_str());
+    if(mbr.mbr_tamano==0){
+        cout<<"ERROR!, login, no encontro el disco: "<<path<<endl;
+        return;
+    }
+    Partition* part=funciones.get_partition_name(&mbr,partName);
+    if(part==NULL){
+        cout<<"ERROR!, login, no encontro la particion solicitada: "<<partName<<endl;
+        return;
+    }
+    Superbloque superbloque = funciones.getSuperbloque(path,partName);
+    if(superbloque.s_magic!=0xEF53){
+        cout<<"ERROR!, login, no encontro el superbloque de la particion: "<<partName<<endl;
+        return;
+    }
+    Barchivo a_users=funciones.getBarchivo(path,superbloque.s_block_start,1);
+    string text = a_users.b_content;
+    StringVector l1=funciones.Explode(text,'\n');
+    l1.erase(l1.end());
+    for(int i=0;i<l1.size();i++){
+        StringVector l2=funciones.Explode(l1[i],',');
+        Usuario usuario;
+        if(l2.size()==5){
+            usuario.id=stoi(l2[0]);
+            usuario.tipo=l2[1];
+            usuario.grupo=l2[2];
+            usuario.usr=l2[3];
+            usuario.pwd=l2[4];
+        }else {
+            usuario.id=stoi(l2[0]);
+            usuario.tipo=l2[1];
+            usuario.grupo=l2[2];
+        }
+        this->lista_u.insert(lista_u.end(),usuario);
+    }
+
+    if(this->log_usuario.log==1){
+        cout<<"ERROR!, login, primero cerrar sesión."<<endl;
+        return;
+    }
+
+    this->log_usuario.log=1;
+    this->log_usuario.user=usr;
+    this->log_usuario.pass=pwd;
+    this->log_usuario.partName=partName;
+    this->log_usuario.path=path;
+    this->log_usuario.superbloque=superbloque;
 
 
 }

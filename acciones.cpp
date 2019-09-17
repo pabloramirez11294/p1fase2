@@ -9,6 +9,20 @@ void Acciones::leerComando(char *entrada)
     //volver minusculas
     while(entrada[i])
     {
+        char pwd[5];
+        if(i>4){
+            char pwd2[5]={entrada[i-3],entrada[i-2],entrada[i-1],entrada[i],'\0'};
+            strcpy(pwd,pwd2);
+        }
+
+        string pass(pwd);
+        if(pass.compare("-pwd")==0 || pass.compare("-usr")==0){
+            while(entrada[i]){
+                i++;
+                if(entrada[i]=='-')
+                    break;
+            }
+        }
         entrada[i] = tolower(entrada[i]);
         i++;
     }
@@ -93,6 +107,8 @@ void Acciones::ejecutarComando(Token token[]){
     string fs="2fs";
     int Addsize = 0;
     char type=0;
+    string usr="";
+    string pwd="";
     //Final Parametros
 
     while(strcmp(token[i+1].value,"")!=0)
@@ -270,6 +286,20 @@ void Acciones::ejecutarComando(Token token[]){
                 }
             }
         }
+        if(strcmp(nomComando.c_str(),"login")==0){
+            if(strcmp(token[i].value,"-usr")==0)
+            {i++;
+                usr = token[i].value;
+            }
+            if(strcmp(token[i].value,"-pwd")==0)
+            {i++;
+                pwd = token[i].value;
+            }
+            if(strcmp(token[i].value,"-id")==0)
+            {i++;
+                id = token[i].value;
+            }
+        }
     }//fin while
 
     if(strcmp(nomComando.c_str(),"mkdisk")==0){
@@ -319,7 +349,13 @@ void Acciones::ejecutarComando(Token token[]){
             return;
         }else
             cout<<"ERROR!,mkfs, faltan parametros"<<endl;
-    }
+    }else if(strcmp(nomComando.c_str(),"login")==0){
+            if(id.compare("")!=0 && usr.compare("")!=0 && pwd.compare("")!=0){
+                comando.login(id,usr,pwd);
+                return;
+            }else
+                cout<<"ERROR!,login, faltan parametros"<<endl;
+        }
 
 }
 

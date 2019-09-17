@@ -255,6 +255,149 @@ void Reporte::RepDisk(const char* path, const char *pathRep){
 }
 
 
+void Reporte::RepBm(const char* path, const char *pathRep,string id,MountDisk mountDisk[],bool esInodo)
+{
+
+    string partName;
+    string pathAux=funciones.getPathByID(id.c_str(),&partName,mountDisk);
+    if(pathAux.compare("")==0){
+        cout<<"ERROR!, reporte bitmap, no encuentra el disco asociado al id: "<<id<<endl;
+        return;
+    }
+    MBR mbr = funciones.leerMBR(path);
+    if(mbr.mbr_tamano==0){
+        cout<<"ERROR!, reporte bitmap, no encontro el disco: "<<path<<endl;
+        return;
+    }
+    Partition* part=funciones.get_partition_name(&mbr,partName);
+    if(part==NULL){
+        cout<<"ERROR!, reporte bitmap, no encontro la particion solicitada: "<<partName<<endl;
+        return;
+    }
+    int n = funciones.numEstructuras(part->part_size);
+
+    if(!esInodo)
+        n=3*n;
+
+    char bitmap[n]; memset(bitmap,0,sizeof bitmap);
+
+    Superbloque superbloque = funciones.getSuperbloque(path,partName);
+    if(superbloque.s_magic!=0xEF53){
+        cout<<"ERROR!, reporte bitmap, no encontro el superbloque de la particion: "<<partName<<endl;
+        return;
+    }
+    if(esInodo)
+        funciones.getBitmap(n,path,superbloque.s_bm_inode_start,bitmap);
+    else
+        funciones.getBitmap(n,path,superbloque.s_bm_block_start,bitmap);
+
+    ofstream file;
+    file.open(pathRep);
+    for(int i=0;i<n;){
+        for(int j=0;j<20;j++){
+            if(i>=n)
+                break;
+            file<<bitmap[i]<<" ";
+            i++;
+        }
+        file<<"\n";
+    }
+
+
+
+}
+void Reporte::RepBlock(const char* path, const char *pathRep, string id, MountDisk mountDisk[]){
+    string partName;
+    string pathAux=funciones.getPathByID(id.c_str(),&partName,mountDisk);
+    if(pathAux.compare("")==0){
+        cout<<"ERROR!, reporte block, no encuentra el disco asociado al id: "<<id<<endl;
+        return;
+    }
+    MBR mbr = funciones.leerMBR(path);
+    if(mbr.mbr_tamano==0){
+        cout<<"ERROR!, reporte block, no encontro el disco: "<<path<<endl;
+        return;
+    }
+    Partition* part=funciones.get_partition_name(&mbr,partName);
+    if(part==NULL){
+        cout<<"ERROR!, reporte block, no encontro la particion solicitada: "<<partName<<endl;
+        return;
+    }
+    Superbloque superbloque = funciones.getSuperbloque(path,partName);
+    if(superbloque.s_magic!=0xEF53){
+        cout<<"ERROR!, reporte bitmap, no encontro el superbloque de la particion: "<<partName<<endl;
+        return;
+    }
+    int cont=0;
+    string text="digraph G { \n rankdir=LR \nnode [shape=rectangle]\n";
+    string aux="";
+    string aux2="";
+    int n = superbloque.s_inodes_count;
+    char bitmap[n]; memset(bitmap,0,sizeof bitmap);
+    funciones.getBitmap(n,path,superbloque.s_bm_inode_start,bitmap);
+    for(int i=0;i<n;i++){
+        if(bitmap[i]=='1'){
+            aux2=aux;
+            Inodo inodo = funciones.getInode(path,superbloque.s_inode_start,i);
+            if(inodo.i_type==0){
+                aux2+=inodoCarpeta(path,inodo,superbloque.s_block_start,&text,&cont);
+            }else{
+                aux2+=inodoArchivo(path,inodo,superbloque.s_block_start,&text,&cont);
+            }
+
+            aux+=aux2+" -> ";
+
+        }
+    }
+    text+=aux2;
+    text+="}";
+
+    GenerarIMGDOT(text.c_str(),"reporte2",pathRep);
+
+}
+void Reporte::RepInode(const char* path, const char *pathRep, string id, MountDisk mountDisk[]){
+    string partName;
+    string pathAux=funciones.getPathByID(id.c_str(),&partName,mountDisk);
+    if(pathAux.compare("")==0){
+        cout<<"ERROR!, reporte block, no encuentra el disco asociado al id: "<<id<<endl;
+        return;
+    }
+    MBR mbr = funciones.leerMBR(path);
+    if(mbr.mbr_tamano==0){
+        cout<<"ERROR!, reporte block, no encontro el disco: "<<path<<endl;
+        return;
+    }
+    Partition* part=funciones.get_partition_name(&mbr,partName);
+    if(part==NULL){
+        cout<<"ERROR!, reporte block, no encontro la particion solicitada: "<<partName<<endl;
+        return;
+    }
+    Superbloque superbloque = funciones.getSuperbloque(path,partName);
+    if(superbloque.s_magic!=0xEF53){
+        cout<<"ERROR!, reporte bitmap, no encontro el superbloque de la particion: "<<partName<<endl;
+        return;
+    }
+    string text="digraph G { \n rankdir=LR \nnode [shape=rectangle]\n";
+    string aux="";
+    string aux2="";
+    int n = superbloque.s_inodes_count;
+    char bitmap[n]; memset(bitmap,0,sizeof bitmap);
+    funciones.getBitmap(n,path,superbloque.s_bm_inode_start,bitmap);
+    for(int i=0;i<n;i++){
+        if(bitmap[i]=='1'){
+            aux2=aux+"n"+to_string(i);
+            aux+=aux2+" -> ";
+            text+="n"+to_string(i)+" [label=\"Inodo "+to_string(i)+"&#92;n";
+            Inodo inodo = funciones.getInode(path,superbloque.s_inode_start,i);
+            text+="Tipo: "+to_string(inodo.i_type)+"\"] \n";
+        }
+    }
+    text+=aux2;
+    text+="}";
+
+    GenerarIMGDOT(text.c_str(),"reporte2",pathRep);
+}
+
 void Reporte::GenerarIMGDOT(const char *Lenguaje, const char *Ruta_Arcivo, const char *Ruta_Img)
 {
     char arch[300] = "/home/pablo/dots/";
@@ -281,4 +424,46 @@ void Reporte::GenerarIMGDOT(const char *Lenguaje, const char *Ruta_Arcivo, const
     char graphimg[200] = "xdg-open  ";
     strcat(graphimg,Ruta_Img);
     system(graphimg);
+}
+
+string Reporte::inodoCarpeta(string path,Inodo inodo,int pos,string *text,int *cont){
+    string aux="";
+    string aux2="";
+    for(int i=0;i<15;i++){
+        if(inodo.i_block[i]==-1)
+            continue;
+        aux2=aux+"n"+to_string(*cont);
+        aux+=aux2+" -> ";
+        int num= inodo.i_block[i];
+        Bcarpeta carpeta= funciones.getBcarpeta(path,pos,num);
+        *text+="n"+to_string(*cont)+" [label=\"Bloque Carpeta"+to_string(num)+"&#92;n";
+        for(int y=0;y<4;y++){
+            string nombre(carpeta.b_content[y].name);
+            string num_inodo=to_string(carpeta.b_content[y].b_inodo);
+            *text+=nombre+"   "+num_inodo+"&#92;n";
+        }
+        *text+="\"]";
+        (*cont)++;
+
+    }
+    return aux2;
+}
+
+string Reporte::inodoArchivo(string path,Inodo inodo,int pos,string *text,int *cont){
+    string aux="";
+    string aux2="";
+    for(int i=0;i<15;i++){
+        if(inodo.i_block[i]==-1)
+            break;
+        aux2=aux+"n"+to_string(*cont);
+        aux+=aux2+" -> ";
+        int num= inodo.i_block[i];
+        Barchivo archivo= funciones.getBarchivo(path,pos,num);
+        *text+="n"+to_string(*cont)+" [label=\"Bloque Archivo"+to_string(num)+"&#92;n";
+        string contenido(archivo.b_content);
+        *text+=contenido+"\"]";
+        (*cont)++;
+
+    }
+    return aux2;
 }

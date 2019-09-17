@@ -1,5 +1,7 @@
 #ifndef SUPERBLOQUE_H
 #define SUPERBLOQUE_H
+#include<string>
+using namespace std;
 struct Superbloque
 {
     int s_inodes_count;
@@ -36,8 +38,23 @@ struct Inodo
     char i_type;
     int i_perm;
 };
-struct Mapbit{
+struct Bitmap{
     char* bits;
 };
-
+struct Log_usuario
+{
+    string user="";
+    string pass="";
+    int log=0;
+    string path;
+    string partName;
+    Superbloque superbloque;
+};
+struct Usuario{
+    int id;
+    string tipo="";
+    string grupo="";
+    string usr="";
+    string pwd="";
+};
 #endif // SUPERBLOQUE_H

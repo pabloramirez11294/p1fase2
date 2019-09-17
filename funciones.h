@@ -9,6 +9,8 @@ public:
     int numAl;
     Funciones();
     //funciones varias
+    string convertToString(char* a, int size);
+    StringVector Explode(const std::string & str, char separator );
     int numAleatorio();
     void createDirs(const char* path);
 
@@ -34,6 +36,22 @@ public:
     MountDisk existIdPartMount(string id,MountDisk *mountDisk);
     string getPathByID(const char*id,string *partName, MountDisk *mountDisk);
     int numEstructuras(int size_t);
+    void setBitMapsInicio(int n,int bm_inodo,int bm_bloque);
+    void getBitmap(int n,const char* location, int posInicial,char* bitmap);
+    void setBitMapsInicio(int n,int posI_inodo,int posI_bloque,string path);
+    Superbloque getSuperbloque(string path,string partName);
+    void setSuperbloque(string path,Superbloque superbloque,int pos);
+    bool formatearTabla_inodos_bloques(string path,Superbloque superbloque);
+    bool ingresarInodo(string path, Inodo inodo, int pos, int num);
+    bool ingresar_bitmap(string path, int pos, int num);
+
+    bool ingresarBloqueCarpeta(string path, Bcarpeta carpeta, int pos, int num);
+    bool ingresarBloqueArchivo(string path, Barchivo carpeta, int pos, int num);
+
+    Bcarpeta getBcarpeta(string path,int pos, int num);
+    Barchivo getBarchivo(string path,int pos, int num);
+    Bapuntador getBapuntador(string path,int pos, int num);
+    Inodo getInode(string path,int pos, int num);
 };
 
 #endif // FUNCIONES_H
