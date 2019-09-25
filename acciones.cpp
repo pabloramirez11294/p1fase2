@@ -7,8 +7,12 @@ void Acciones::leerComando(char *entrada)
     if(entrada[i]=='\n' )
         return;
     //volver minusculas
+    bool noMinus=false;
+    string cmd="";
     while(entrada[i])
     {
+
+
         char pwd[5];
         if(i>4){
             char pwd2[5]={entrada[i-3],entrada[i-2],entrada[i-1],entrada[i],'\0'};
@@ -16,7 +20,7 @@ void Acciones::leerComando(char *entrada)
         }
 
         string pass(pwd);
-        if(pass.compare("-pwd")==0 || pass.compare("-usr")==0){
+        if(pass.compare("-pwd")==0 || pass.compare("-usr")==0 || (noMinus && pass.compare("-nam")==0)){
             while(entrada[i]){
                 i++;
                 if(entrada[i]=='-')
@@ -24,6 +28,10 @@ void Acciones::leerComando(char *entrada)
             }
         }
         entrada[i] = tolower(entrada[i]);
+        cmd+=entrada[i];
+        if(!noMinus && (cmd.compare("mkgrp")==0 || cmd.compare("rmgrp")==0)){
+            noMinus=true;
+        }
         i++;
     }
 
@@ -37,7 +45,7 @@ void Acciones::leerComando(char *entrada)
     {
         int asciichar = toascii(entrada[i]);
         //a-z y 0-9
-        if((asciichar >= 97 && asciichar <= 122) ||
+        if((asciichar >= 65 && asciichar <= 90) ||(asciichar >= 97 && asciichar <= 122) ||
                 (asciichar >= 45 && asciichar <= 57))
         {
             memset(tok,0,sizeof tok);
@@ -285,8 +293,7 @@ void Acciones::ejecutarComando(Token token[]){
                     return;
                 }
             }
-        }
-        if(strcmp(nomComando.c_str(),"login")==0){
+        }if(strcmp(nomComando.c_str(),"login")==0){
             if(strcmp(token[i].value,"-usr")==0)
             {i++;
                 usr = token[i].value;
@@ -299,7 +306,28 @@ void Acciones::ejecutarComando(Token token[]){
             {i++;
                 id = token[i].value;
             }
+        }if(strcmp(nomComando.c_str(),"mkgrp")==0)
+        {
+            if(strcmp(token[i].value,"-name")==0)
+            {i++;
+                name = token[i].value;
+                comando.mkgrp(name);
+            }else
+            printf("ERROR!,mkgrp, faltan parametros\n");
+
+            return;
+        }if(strcmp(nomComando.c_str(),"rmgrp")==0)
+        {
+            if(strcmp(token[i].value,"-name")==0)
+            {i++;
+                name = token[i].value;
+                comando.rmgrp(name);
+            }else
+            printf("ERROR!,rmgrp, faltan parametros\n");
+
+            return;
         }
+
     }//fin while
 
     if(strcmp(nomComando.c_str(),"mkdisk")==0){
@@ -350,12 +378,15 @@ void Acciones::ejecutarComando(Token token[]){
         }else
             cout<<"ERROR!,mkfs, faltan parametros"<<endl;
     }else if(strcmp(nomComando.c_str(),"login")==0){
-            if(id.compare("")!=0 && usr.compare("")!=0 && pwd.compare("")!=0){
-                comando.login(id,usr,pwd);
-                return;
-            }else
-                cout<<"ERROR!,login, faltan parametros"<<endl;
-        }
+        if(id.compare("")!=0 && usr.compare("")!=0 && pwd.compare("")!=0){
+            comando.login(id,usr,pwd);
+            return;
+        }else
+            cout<<"ERROR!,login, faltan parametros"<<endl;
+    }if(strcmp(nomComando.c_str(),"logout")==0){
+        comando.logout();
+        return;
+    }
 
 }
 

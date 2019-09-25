@@ -52,6 +52,10 @@ public:
     Barchivo getBarchivo(string path,int pos, int num);
     Bapuntador getBapuntador(string path,int pos, int num);
     Inodo getInode(string path,int pos, int num);
+    bool setBloque(Inodo inodo, string txt, Superbloque superbloque, string path, int num_inodo);
+    int bloqueLibre(string path, Superbloque superbloque);
+    string leerArchivo(string path, Superbloque superbloque,string ruta);
+    int buscarInodoRaiz(string path, Superbloque superbloque,string ruta);
 };
 
 #endif // FUNCIONES_H

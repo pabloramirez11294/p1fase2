@@ -2,6 +2,7 @@
 #define COMANDO_H
 #include"funciones.h"
 #include"reporte.h"
+using namespace std;
 class Comando
 {
 public:
@@ -10,7 +11,7 @@ public:
     MountDisk mountDisk[20];
     Reporte reporte;
     Log_usuario log_usuario;
-    vector<Usuario> lista_u;
+
     //funciones
     void Mkdisk(string path, int sizeB, char unit, string fit);
     void Rmdisk(string path);
@@ -22,6 +23,9 @@ public:
     void Rep(string id,string path,string name);
     void mkfs(string id, string type);
     void login(string id,string usr,string pwd);
+    void logout();
+    void mkgrp(string name);
+    void rmgrp(string name);
 };
 
 #endif // COMANDO_H

@@ -52,9 +52,9 @@ struct Log_usuario
 };
 struct Usuario{
     int id;
-    string tipo="";
-    string grupo="";
-    string usr="";
-    string pwd="";
+    string tipo;
+    string grupo;
+    string usr;
+    string pwd;
 };
 #endif // SUPERBLOQUE_H

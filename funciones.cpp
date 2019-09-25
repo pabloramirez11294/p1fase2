@@ -564,7 +564,6 @@ Bcarpeta Funciones::getBcarpeta(string path,int pos, int num){
     }
     fread(&carpeta,sizeof(Bcarpeta),1,ptr_file);
     fclose(ptr_file);
-    fclose(ptr_file);
     return carpeta;
 }
 Barchivo Funciones::getBarchivo(string path,int pos, int num){
@@ -609,3 +608,114 @@ Inodo Funciones::getInode(string path,int pos, int num){
     fclose(ptr_file);
     return inodo;
 }
+
+bool Funciones::setBloque(Inodo inodo,string txt,Superbloque superbloque,string path,int num_inodo){
+    int aux=0;
+    for(int i=0;i<15;i++){
+        if(inodo.i_block[i]==-1){
+            if(i==0)
+                break;
+            aux=i-1;
+            break;
+        }
+    }
+    Barchivo archivo=getBarchivo(path,superbloque.s_block_start,inodo.i_block[aux]);
+
+    int total=(inodo.i_size-64*aux)+txt.size();
+    if(total<=64){
+        strcat(archivo.b_content,txt.c_str());
+        if(!(ingresarBloqueArchivo(path,archivo,superbloque.s_block_start,inodo.i_block[aux]) )){
+            return false;
+        }
+    }else{
+        int b_libre=bloqueLibre(path,superbloque);
+        if(b_libre==-1){
+            cout<<"Error, no hay bloque libres."<<endl;
+            return false;
+        }
+        inodo.i_block[aux+1]=b_libre;
+        Barchivo archivo2;
+        int residuo=total-64;
+        int tamano=txt.size()-residuo;
+        char ch[tamano];
+        char ch2[residuo];
+        txt.copy(ch,tamano,0);
+        txt.copy(ch2,residuo,tamano);
+        strcat(archivo.b_content,ch);
+        strcpy(archivo2.b_content,ch2);
+        if(!(ingresarBloqueArchivo(path,archivo,superbloque.s_block_start,inodo.i_block[aux]) )){
+            return false;
+        }
+        if(!(ingresarBloqueArchivo(path,archivo2,superbloque.s_block_start,inodo.i_block[aux+1]) && ingresar_bitmap(path,superbloque.s_bm_block_start,inodo.i_block[aux+1]))){
+            return false;
+        }
+
+    }
+    inodo.i_size+=txt.size();
+    if(!(ingresarInodo(path,inodo,superbloque.s_inode_start,num_inodo))){
+        cout<<"ERROR!, setBloque, no se pudo ingresar el inodo: "<<endl;
+        return false;
+    }
+    return true;
+}
+
+
+int Funciones::bloqueLibre(string path, Superbloque superbloque){
+    int n=superbloque.s_blocks_count;
+    char bitmap[n]; memset(bitmap,0,sizeof bitmap);
+    getBitmap(n,path.c_str(),superbloque.s_bm_block_start,bitmap);
+    for(int i=0;i<n;i++){
+        if(bitmap[i]=='0'){
+            return i;
+        }
+    }
+    return -1;
+}
+
+string Funciones::leerArchivo(string path, Superbloque superbloque,string ruta){
+    int num_i=buscarInodoRaiz(path,superbloque,ruta);
+    if(num_i==-1)
+        return "";
+    Inodo inodo = getInode(path,superbloque.s_inode_start,num_i);
+    string txt="";
+    for(int i=0;i<15;i++){
+        int numB=inodo.i_block[i];
+        if(numB==-1){
+            break;
+        }
+        Barchivo archivo=getBarchivo(path,superbloque.s_block_start,numB);
+        txt.append(archivo.b_content,0,64);
+    }
+    return txt;
+}
+
+int Funciones::buscarInodoRaiz(string path, Superbloque superbloque,string ruta){
+    Inodo raiz = getInode(path,superbloque.s_inode_start,0);
+    StringVector l1=Explode(ruta,'/');
+    string nombre = l1.at(l1.size()-1);
+    for(int i=0;i<15;i++){
+        if(raiz.i_block[i]!=-1){
+            Bcarpeta capeta = getBcarpeta(path,superbloque.s_block_start,raiz.i_block[i]);
+            for(int y=0;y<4;y++){
+                Content cont = capeta.b_content[y];
+                if(nombre.compare(cont.name)==0){
+                    return cont.b_inodo;
+                }
+            }
+        }
+    }
+    return -1;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
