@@ -345,10 +345,11 @@ void Reporte::RepBlock(const char* path, const char *pathRep, string id, MountDi
                 aux2+=inodoArchivo(path,inodo,superbloque.s_block_start,&text,&cont);
             }
 
-            aux+=aux2+" -> ";
+            aux=aux2+" -> ";
 
         }
     }
+
     text+=aux2;
     text+="}";
 
@@ -386,7 +387,7 @@ void Reporte::RepInode(const char* path, const char *pathRep, string id, MountDi
     for(int i=0;i<n;i++){
         if(bitmap[i]=='1'){
             aux2=aux+"n"+to_string(i);
-            aux+=aux2+" -> ";
+            aux=aux2+" -> ";
             text+="n"+to_string(i)+" [label=\"Inodo "+to_string(i)+"&#92;n";
             Inodo inodo = funciones.getInode(path,superbloque.s_inode_start,i);
             for(int y=0;y<15;y++){

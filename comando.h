@@ -26,6 +26,9 @@ public:
     void logout();
     void mkgrp(string name);
     void rmgrp(string name);
+    void mkusr(string grp, string usr, string pwd);
+    void rmusr(string name);
+    void mkdir(string dir, bool p);
 };
 
 #endif // COMANDO_H

@@ -551,7 +551,7 @@ void Comando::mkfs(string id, string type){
         return;
     }
     Barchivo b_users;
-    strcpy(b_users.b_content,"1,G,Root\n1,U,root,root,123\n");
+    strcpy(b_users.b_content,"1,G,Root\n1,U,Root,root,123\n");
     if(!(funciones.ingresarBloqueArchivo(path,b_users,superbloque.s_block_start,1) && funciones.ingresar_bitmap(path,superbloque.s_bm_block_start,1))){
         cout<<"ERROR!,MKFS no se pudo ingresar el bloque archivo: users.txt"<<endl;
         return;
@@ -631,6 +631,7 @@ void Comando::login(string id, string usr, string pwd){
             if(us.pwd.compare(pwd)==0){
                 encontro_p=1;
             }
+            break;
         }
     }
     if(!encontro_u){
@@ -641,12 +642,25 @@ void Comando::login(string id, string usr, string pwd){
         return;
     }
 
+    //entontrar gid
+    int numGrupo=0;
+    Usuario gr;
+    for(unsigned int i=0;i<lista_u.size();i++){
+        gr=lista_u[i];
+        if(gr.tipo.compare("G")==0 && gr.grupo.compare(us.grupo)==0){
+            numGrupo=gr.id;
+            break;
+        }
+    }
+
     this->log_usuario.log=1;
     this->log_usuario.user=usr;
     this->log_usuario.pass=pwd;
     this->log_usuario.partName=partName;
     this->log_usuario.path=path;
     this->log_usuario.superbloque=superbloque;
+    this->log_usuario.uid=us.id;
+    this->log_usuario.gid=numGrupo;
     cout<<"Login exitoso!, usuario: "<<usr<<endl;
 
 }
@@ -756,9 +770,215 @@ void Comando::rmgrp(string name){
     text.replace(pos-1,1,"0");
 
     Inodo inodo= funciones.getInode(this->log_usuario.path,this->log_usuario.superbloque.s_inode_start,1);
-    if(!funciones.setBloque(inodo,text,this->log_usuario.superbloque,this->log_usuario.path,1)){
-        cout<<"ERROR!,rmgrp no se pudo ingresar el bloque archivo: users.txt"<<endl;
-        return;
-    }
+
+
+    int res=0;
+    int cont=0;
+    do{
+        res=text.size()-64;
+        string aux=text.substr(0,64);
+        text.replace(0,64,"");
+
+        Barchivo archivo=funciones.getBarchivo(this->log_usuario.path,this->log_usuario.superbloque.s_block_start,inodo.i_block[cont]);
+        strcpy(archivo.b_content,aux.c_str());
+        if(!(funciones.ingresarBloqueArchivo(this->log_usuario.path,archivo,this->log_usuario.superbloque.s_block_start,inodo.i_block[cont]) )){
+            cout<<"ERROR!,rmgrp no se pudo ingresar el bloque archivo: users.txt"<<endl;
+            return;
+        }
+        cont++;
+    }while(res >=0);
+
+
+
     cout<<"rmgrp exitoso!, se borro el grupo: "<<name<<endl;
 }
+
+
+void Comando::mkusr(string grp, string usr, string pwd){
+    if(this->log_usuario.log==0){
+        cout<<"ERROR!, mkusr, primero iniciar sesión."<<endl;
+        return;
+    }
+    if(!this->log_usuario.user.compare("root")==0){
+        cout<<"ERROR!, mkusr, no tiene permiso de utilizar el comando, usr: "<<this->log_usuario.user<<endl;
+        return;
+    }
+    //listar los usuarios
+    string text = funciones.leerArchivo(this->log_usuario.path,this->log_usuario.superbloque,"/users.txt");
+    if(text.compare("")==0){
+        cout<<"ERROR!, mkusr,no pudo leer el archivo users.txt"<<endl;
+        return;
+    }
+
+    size_t pos = text.find(",G,"+grp);
+    if(pos==std::string::npos){
+        cout<<"ERROR!, mkusr,no encontro el grupo: "<<grp<<endl;
+        return;
+    }
+
+    //string text="1,G,Root\n1,U,root,root,123\n2,G,usuarios\n3,G,otros\n";
+    StringVector l1=funciones.Explode(text,'\n');
+    string vacio=l1.at(l1.size()-1);
+    if(vacio.compare("")==0){
+            l1.erase(l1.end());
+    }
+
+    vector<Usuario> lista_g;
+    for(unsigned int i=0;i<l1.size();i++){
+        StringVector l2=funciones.Explode(l1[i],',');
+        if(l2.size()==5){
+            Usuario *usuario=new Usuario;
+            usuario->id=stoi(l2[0]);
+            usuario->tipo=l2[1];
+            usuario->grupo=l2[2];
+            usuario->usr=l2[3];
+            usuario->pwd=l2[4];
+            lista_g.push_back(*usuario);
+        }
+
+    }
+
+    //comprobaciones usuario
+    Usuario *usu=new Usuario;
+    for(unsigned int i=0;i<lista_g.size();i++){
+        *usu=lista_g[i];
+        if(usu->id!=0 && usu->usr.compare(usr)==0){
+            cout<<"ERROR!, mkusr, usuario ya existente: "<<usr<<endl;
+            return;
+        }
+    }
+
+    int tam=lista_g.size()+1;
+    string nuevo_g=to_string(tam)+",U,"+grp+","+usr+","+pwd+"\n";
+    Inodo inodo= funciones.getInode(this->log_usuario.path,this->log_usuario.superbloque.s_inode_start,1);
+    if(!funciones.setBloque(inodo,nuevo_g,this->log_usuario.superbloque,this->log_usuario.path,1)){
+        cout<<"ERROR!,mkusr no se pudo ingresar el bloque archivo: users.txt"<<endl;
+        return;
+    }
+
+    cout<<"mkusr exitoso!, se creo el usuario: "<<usr<<endl;
+
+}
+
+void Comando::rmusr(string name){
+    if(this->log_usuario.log==0){
+        cout<<"ERROR!, rmusr, primero iniciar sesión."<<endl;
+        return;
+    }
+    if(!this->log_usuario.user.compare("root")==0){
+        cout<<"ERROR!, rmusr, no tiene permiso de utilizar el comando, usr: "<<this->log_usuario.user<<endl;
+        return;
+    }
+    //listar los usuarios
+    string text = funciones.leerArchivo(this->log_usuario.path,this->log_usuario.superbloque,"/users.txt");
+    if(text.compare("")==0){
+        cout<<"ERROR!, rmusr,no pudo leer el archivo users.txt"<<endl;
+        return;
+    }
+
+
+    //string text="1,G,Root\n1,U,root,root,123\n2,G,usuarios\n3,G,otros\n";
+    StringVector l1=funciones.Explode(text,'\n');
+    string vacio=l1.at(l1.size()-1);
+    if(vacio.compare("")==0){
+            l1.erase(l1.end());
+    }
+
+    vector<Usuario> lista_g;
+    for(unsigned int i=0;i<l1.size();i++){
+        StringVector l2=funciones.Explode(l1[i],',');
+        if(l2.size()==5){
+            Usuario *usuario=new Usuario;
+            usuario->id=stoi(l2[0]);
+            usuario->tipo=l2[1];
+            usuario->grupo=l2[2];
+            usuario->usr=l2[3];
+            usuario->pwd=l2[4];
+            lista_g.push_back(*usuario);
+        }
+
+    }
+
+    //comprobaciones usuario
+    bool noEncotro=true;
+    Usuario *usu=new Usuario;
+    for(unsigned int i=0;i<lista_g.size();i++){
+        *usu=lista_g[i];
+        if(usu->id!=0 && usu->usr.compare(name)==0){
+            usu->id=0;
+            noEncotro=false;
+            break;
+        }
+    }
+    if(noEncotro){
+        cout<<"ERROR!, rmusr, no enonctro usuario: "<<name<<endl;
+        return;
+    }
+    size_t pos = text.find(",U,"+usu->grupo+","+name);
+    if(pos==std::string::npos){
+        cout<<"ERROR!, rmusr,no encontro el usuario: "<<name<<endl;
+        return;
+    }
+    if(text.at(pos-1)=='0'){
+        cout<<"ERROR!, rmusr,no encontro el usuario: "<<name<<endl;
+        return;
+    }
+    text.replace(pos-1,1,"0");
+
+
+    //ingreso
+    Inodo inodo= funciones.getInode(this->log_usuario.path,this->log_usuario.superbloque.s_inode_start,1);
+
+
+    int res=0;
+    int cont=0;
+    do{
+        res=text.size()-64;
+        string aux=text.substr(0,64);
+        text.replace(0,64,"");
+
+        Barchivo archivo=funciones.getBarchivo(this->log_usuario.path,this->log_usuario.superbloque.s_block_start,inodo.i_block[cont]);
+        strcpy(archivo.b_content,aux.c_str());
+        if(!(funciones.ingresarBloqueArchivo(this->log_usuario.path,archivo,this->log_usuario.superbloque.s_block_start,inodo.i_block[cont]) )){
+            cout<<"ERROR!,rmusr no se pudo ingresar el bloque archivo: users.txt"<<endl;
+            return;
+        }
+        cont++;
+    }while(res >=0);
+
+
+
+    cout<<"rmusr exitoso!, se borro el usuario: "<<name<<endl;
+}
+
+void Comando::mkdir(string dir, bool p){
+    if(this->log_usuario.log==0){
+        cout<<"ERROR!, rmusr, primero iniciar sesión."<<endl;
+        return;
+    }
+
+
+
+    Inodo inodo;
+    inodo.i_uid=this->log_usuario.uid;
+    inodo.i_gid=this->log_usuario.gid;
+    inodo.i_size=0;
+    inodo.i_atime=0;
+    inodo.i_ctime=time(NULL);
+    inodo.i_mtime=0;
+    memset(inodo.i_block,-1,sizeof inodo.i_block);
+    inodo.i_type=0;
+    inodo.i_perm=664;
+
+
+
+    if(!funciones.Fmkdir(inodo,dir,this->log_usuario.path,this->log_usuario.superbloque)){
+        cout<<"ERROR!, mkdir, no se pudo crear la carpeta: "<<dir<<endl;
+        return;
+    }
+
+    cout<<"mkdir exitoso!, se creo la carpeta: "<<dir<<endl;
+}
+
+
+

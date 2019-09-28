@@ -54,8 +54,12 @@ public:
     Inodo getInode(string path,int pos, int num);
     bool setBloque(Inodo inodo, string txt, Superbloque superbloque, string path, int num_inodo);
     int bloqueLibre(string path, Superbloque superbloque);
+    int inodoLibre(string path, Superbloque superbloque);
     string leerArchivo(string path, Superbloque superbloque,string ruta);
     int buscarInodoRaiz(string path, Superbloque superbloque,string ruta);
+    int buscarInodoCarpeta(string path, string nombre, Superbloque superbloque, Inodo raiz);
+    bool Fmkdir(Inodo inodo, string dir, string path, Superbloque superbloque);
+    int buscartInodoLibreDentroInodoCarpeta(string path,Superbloque superbloque,Inodo inodoAux);
 };
 
 #endif // FUNCIONES_H

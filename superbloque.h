@@ -46,6 +46,8 @@ struct Log_usuario
     string user="";
     string pass="";
     int log=0;
+    int uid;
+    int gid;
     string path;
     string partName;
     Superbloque superbloque;

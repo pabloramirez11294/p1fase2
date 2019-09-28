@@ -20,7 +20,7 @@ void Acciones::leerComando(char *entrada)
         }
 
         string pass(pwd);
-        if(pass.compare("-pwd")==0 || pass.compare("-usr")==0 || (noMinus && pass.compare("-nam")==0)){
+        if(pass.compare("-pwd")==0 || pass.compare("-usr")==0 || pass.compare("-grp")==0 || (noMinus && pass.compare("-nam")==0)){
             while(entrada[i]){
                 i++;
                 if(entrada[i]=='-')
@@ -117,6 +117,7 @@ void Acciones::ejecutarComando(Token token[]){
     char type=0;
     string usr="";
     string pwd="";
+    bool p=false;
     //Final Parametros
 
     while(strcmp(token[i+1].value,"")!=0)
@@ -326,6 +327,39 @@ void Acciones::ejecutarComando(Token token[]){
             printf("ERROR!,rmgrp, faltan parametros\n");
 
             return;
+        }if(strcmp(nomComando.c_str(),"mkusr")==0)
+        {
+            if(strcmp(token[i].value,"-usr")==0)
+            {i++;
+                usr = token[i].value;
+            }
+            if(strcmp(token[i].value,"-pwd")==0)
+            {i++;
+                pwd = token[i].value;
+            }
+            if(strcmp(token[i].value,"-grp")==0)
+            {i++;
+                name = token[i].value;
+            }
+        }if(strcmp(nomComando.c_str(),"rmusr")==0)
+        {
+            if(strcmp(token[i].value,"-usr")==0)
+            {i++;
+                usr = token[i].value;
+                comando.rmusr(usr);
+            }else
+            printf("ERROR!,rmusr, faltan parametros\n");
+
+            return;
+        }if(strcmp(nomComando.c_str(),"mkdir")==0){
+            if(strcmp(token[i].value,"-path")==0)
+            {i++;
+                path = token[i].value;
+            }
+            if(strcmp(token[i].value,"-p")==0)
+            {
+                p=true;
+            }
         }
 
     }//fin while
@@ -383,9 +417,21 @@ void Acciones::ejecutarComando(Token token[]){
             return;
         }else
             cout<<"ERROR!,login, faltan parametros"<<endl;
-    }if(strcmp(nomComando.c_str(),"logout")==0){
+    }else if(strcmp(nomComando.c_str(),"logout")==0){
         comando.logout();
         return;
+    }else if(strcmp(nomComando.c_str(),"mkusr")==0){
+        if(name.compare("")!=0 && usr.compare("")!=0 && pwd.compare("")!=0){
+            comando.mkusr(name,usr,pwd);
+            return;
+        }else
+            cout<<"ERROR!,mkusr, faltan parametros"<<endl;
+    }else if(strcmp(nomComando.c_str(),"mkdir")==0){
+        if(path.compare("")!=0){
+            comando.mkdir(path,p);
+            return;
+        }else
+            cout<<"ERROR!,mkdir, faltan parametros"<<endl;
     }
 
 }
