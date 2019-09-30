@@ -490,7 +490,7 @@ void Comando::mkfs(string id, string type){
 
     //formateo fast o full
     if(type.compare("full")==0){
-        if(!funciones.formatearTabla_inodos_bloques(path,superbloque)){
+        if(!funciones.formatearTabla_inodos_bloques(path,superbloque,part->part_start)){
             cout<<"ERROR!,MKFS full no se pudo formatear la tabla indodos o tablo bloque, particion: "<<partName<<endl;
         }
     }
@@ -563,6 +563,13 @@ void Comando::mkfs(string id, string type){
 
     cout<<"MKFS full exitoso, particion: "<<partName<<endl;
 
+    //Journaling****
+    string txt_type="";
+    if(type.compare("")!=0)
+        txt_type=" -type="+type;
+    string log="mkfs -id="+id+txt_type;
+    funciones.Fjournaling(path,log,part->part_start);
+    //****
 
 }
 
@@ -661,7 +668,24 @@ void Comando::login(string id, string usr, string pwd){
     this->log_usuario.superbloque=superbloque;
     this->log_usuario.uid=us.id;
     this->log_usuario.gid=numGrupo;
+    this->log_usuario.partStart=part->part_start;
     cout<<"Login exitoso!, usuario: "<<usr<<endl;
+
+
+    //Journaling****
+    string txt_id="";
+    string txt_usr="";
+    string txt_pwd="";
+    if(id.compare("")!=0)
+        txt_id=" -id="+id;
+    if(usr.compare("")!=0)
+        txt_usr=" -usr="+usr;
+    if(pwd.compare("")!=0)
+        txt_pwd=" -pwd="+pwd;
+
+    string log="login "+txt_id+txt_usr+txt_pwd;
+    funciones.Fjournaling(this->log_usuario.path,log,this->log_usuario.partStart);
+    //****
 
 }
 
@@ -677,7 +701,18 @@ void Comando::logout(){
     this->log_usuario.path="";
     this->log_usuario.superbloque=superb;
     this->log_usuario.user="";
+    this->log_usuario.uid=0;
+    this->log_usuario.gid=0;
+    this->log_usuario.partStart=-1;
     cout<<"logout, se cerro sesión."<<endl;
+
+    //Journaling****
+
+
+    string log="logout";
+    funciones.Fjournaling(this->log_usuario.path,log,this->log_usuario.partStart);
+    //****
+
 }
 
 void Comando::mkgrp(string name){
@@ -689,6 +724,10 @@ void Comando::mkgrp(string name){
         cout<<"ERROR!, mkgrp, no tiene permiso de utilizar el comando, usr: "<<this->log_usuario.user<<endl;
         return;
     }
+    //Journaling****
+    string log="mkgrp -name="+name;
+    funciones.Fjournaling(this->log_usuario.path,log,this->log_usuario.partStart);
+    //****
     //listar los usuarios
     string text = funciones.leerArchivo(this->log_usuario.path,this->log_usuario.superbloque,"/users.txt");
     if(text.compare("")==0){
@@ -751,6 +790,10 @@ void Comando::rmgrp(string name){
         cout<<"ERROR!, rmgrp, no tiene permiso de utilizar el comando, usr: "<<this->log_usuario.user<<endl;
         return;
     }
+    //Journaling****
+    string log="rmgrp -name="+name;
+    funciones.Fjournaling(this->log_usuario.path,log,this->log_usuario.partStart);
+    //****
     //listar los usuarios
     string text = funciones.leerArchivo(this->log_usuario.path,this->log_usuario.superbloque,"/users.txt");
     if(text.compare("")==0){
@@ -803,6 +846,10 @@ void Comando::mkusr(string grp, string usr, string pwd){
         cout<<"ERROR!, mkusr, no tiene permiso de utilizar el comando, usr: "<<this->log_usuario.user<<endl;
         return;
     }
+    //Journaling****
+    string log="mkusr -usr="+usr+" -pwd="+pwd+" -grp="+grp;
+    funciones.Fjournaling(this->log_usuario.path,log,this->log_usuario.partStart);
+    //****
     //listar los usuarios
     string text = funciones.leerArchivo(this->log_usuario.path,this->log_usuario.superbloque,"/users.txt");
     if(text.compare("")==0){
@@ -869,6 +916,10 @@ void Comando::rmusr(string name){
         cout<<"ERROR!, rmusr, no tiene permiso de utilizar el comando, usr: "<<this->log_usuario.user<<endl;
         return;
     }
+    //Journaling****
+    string log="rmusr -name="+name;
+    funciones.Fjournaling(this->log_usuario.path,log,this->log_usuario.partStart);
+    //****
     //listar los usuarios
     string text = funciones.leerArchivo(this->log_usuario.path,this->log_usuario.superbloque,"/users.txt");
     if(text.compare("")==0){
@@ -953,10 +1004,17 @@ void Comando::rmusr(string name){
 
 void Comando::mkdir(string dir, bool p){
     if(this->log_usuario.log==0){
-        cout<<"ERROR!, rmusr, primero iniciar sesión."<<endl;
+        cout<<"ERROR!, mkdir, primero iniciar sesión."<<endl;
         return;
     }
+    //Journaling****
+    string txt_p="";
+    if(p)
+        txt_p=" -p";
 
+    string log="mkdir -path="+dir+txt_p;
+    funciones.Fjournaling(this->log_usuario.path,log,this->log_usuario.partStart);
+    //****
 
 
     Inodo inodo;
@@ -980,5 +1038,173 @@ void Comando::mkdir(string dir, bool p){
     cout<<"mkdir exitoso!, se creo la carpeta: "<<dir<<endl;
 }
 
+void Comando::mkfile(string dir, bool p, string cont, int size){
+    if(this->log_usuario.log==0){
+        cout<<"ERROR!, mkfile, primero iniciar sesión."<<endl;
+        return;
+    }
+    //Journaling****
+    string txt_cont="";
+    string txt_size="";
+    string txt_p="";
+    if(p)
+        txt_p=" -p";
+    if(cont.compare("")!=0)
+        txt_cont=" -cont="+cont;
+    if(size!=0)
+        txt_size=" -size="+to_string(size);
+
+    string log="mkfile -path="+dir+txt_p+txt_cont+txt_size;
+    funciones.Fjournaling(this->log_usuario.path,log,this->log_usuario.partStart);
+    //****
+
+    string text="";
+    if(cont.compare("")==0){
+        if(size!=0){
+            int contador=0;
+            for(int i=0;i<size;i++){
+                text+=to_string(contador);
+                contador++;
+                if(contador==10)
+                    contador=0;
+            }
+        }
+    }else{
+        text=funciones.leerArchivoFisico(cont);
+        if(text.compare("")==0){
+            cout<<"ERROR!, mkfile, no pudo leer o archivo vacio: "<<cont<<endl;
+            return;
+        }
+    }
 
 
+
+    //crear inodo
+    Inodo inodo;
+    inodo.i_uid=this->log_usuario.uid;
+    inodo.i_gid=this->log_usuario.gid;
+    inodo.i_size=text.size();
+    inodo.i_atime=0;
+    inodo.i_ctime=time(NULL);
+    inodo.i_mtime=0;
+    memset(inodo.i_block,-1,sizeof inodo.i_block);
+    inodo.i_type=1;
+    inodo.i_perm=664;
+
+
+    //crear bloqueArchivo
+
+
+    int res=0;
+    int contador=0;
+    do{
+        res=text.size()-64;
+        string aux=text.substr(0,64);
+        text.replace(0,64,"");
+
+        Barchivo archivo;
+        strcpy(archivo.b_content,aux.c_str());
+        int numBarchivo=funciones.bloqueLibre(this->log_usuario.path,this->log_usuario.superbloque);
+        if(!(funciones.ingresarBloqueArchivo(this->log_usuario.path,archivo,this->log_usuario.superbloque.s_block_start,numBarchivo)
+             && funciones.ingresar_bitmap(this->log_usuario.path,this->log_usuario.superbloque.s_bm_block_start,numBarchivo) )){
+            cout<<"ERROR!,mkfile no se pudo ingresar el bloque archivo:"<<dir<<endl;
+            return;
+        }
+        inodo.i_block[contador]=numBarchivo;
+        contador++;
+    }while(res >=0);
+
+    if(!funciones.Fmkfile(inodo,dir,this->log_usuario.path,this->log_usuario.superbloque)){
+        cout<<"ERROR!, mkfile, no se pudo crear el archivo: "<<dir<<endl;
+        return;
+    }
+
+
+    cout<<"mkfile exitoso!, se creo el archivo: "<<dir<<endl;
+}
+
+
+void Comando::cat(string file){
+    if(this->log_usuario.log==0){
+        cout<<"ERROR!, cat, primero iniciar sesión."<<endl;
+        return;
+    }
+
+    string text="";
+    if(!funciones.Fcat(file,this->log_usuario.path,this->log_usuario.superbloque,&text)){
+        cout<<"ERROR!, cat, no pudo leer el archivo: "<<file<<endl;
+        return;
+    }
+
+    cout<<"Cat Exitoso!, Archivo "<<file<<":\n"<<text<<endl;
+
+
+}
+
+
+StringVector Comando::recovery(string id){
+    StringVector l1;
+    string partName;
+    string path = funciones.getPathByID(id.c_str(),&partName,mountDisk);
+    if(path.compare("")==0){
+        cout<<"ERROR!, recovery, no encuentra el disco asociado al id: "<<id<<endl;
+        return l1;
+    }
+    MBR mbr = funciones.leerMBR(path.c_str());
+    if(mbr.mbr_tamano==0){
+        cout<<"ERROR!, recovery, no encontro el disco: "<<path<<endl;
+        return l1;
+    }
+    Partition* part=funciones.get_partition_name(&mbr,partName);
+    if(part==NULL){
+        cout<<"ERROR!, recovery, no encontro la particion solicitada: "<<partName<<endl;
+        return l1;
+    }
+    Superbloque superbloque = funciones.getSuperbloque(path,partName);
+    if(superbloque.s_magic!=0xEF53){
+        cout<<"ERROR!, recovery, no encontro el superbloque de la particion: "<<partName<<endl;
+        return l1;
+    }
+    string texto=funciones.Frecovery(path,part->part_start);
+
+    StringVector comandos = funciones.Explode(texto,'\n');
+    string vacio=comandos.at(comandos.size()-1);
+    if(vacio.compare("")==0)
+        comandos.erase(comandos.end());
+
+    return comandos;
+
+}
+
+
+void Comando::loss(string id){
+    string partName;
+    string path = funciones.getPathByID(id.c_str(),&partName,mountDisk);
+    if(path.compare("")==0){
+        cout<<"ERROR!, loss, no encuentra el disco asociado al id: "<<id<<endl;
+        return ;
+    }
+    MBR mbr = funciones.leerMBR(path.c_str());
+    if(mbr.mbr_tamano==0){
+        cout<<"ERROR!, loss, no encontro el disco: "<<path<<endl;
+        return ;
+    }
+    Partition* part=funciones.get_partition_name(&mbr,partName);
+    if(part==NULL){
+        cout<<"ERROR!, loss, no encontro la particion solicitada: "<<partName<<endl;
+        return ;
+    }
+    Superbloque superbloque = funciones.getSuperbloque(path,partName);
+    if(superbloque.s_magic!=0xEF53){
+        cout<<"ERROR!, loss, no encontro el superbloque de la particion: "<<partName<<endl;
+        return ;
+    }
+
+    if(!funciones.Floss(path,superbloque)){
+        cout<<"ERROR!, loss, no pudo formatear la particion: "<<id<<endl;
+        return ;
+    }
+    funciones.setBitMapsInicio(superbloque.s_inodes_count,superbloque.s_bm_inode_start,superbloque.s_bm_block_start,path);
+
+    cout<<"loss exitoso!, se formateo correctamente, la particion: "<<id<<endl;
+}

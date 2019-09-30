@@ -20,7 +20,8 @@ void Acciones::leerComando(char *entrada)
         }
 
         string pass(pwd);
-        if(pass.compare("-pwd")==0 || pass.compare("-usr")==0 || pass.compare("-grp")==0 || (noMinus && pass.compare("-nam")==0)){
+        if(pass.compare("-pwd")==0 || pass.compare("-usr")==0 || pass.compare("-grp")==0 || (noMinus && pass.compare("-nam")==0)
+                || (noMinus && pass.compare("-pat")==0) || pass.compare("-fil")==0){
             while(entrada[i]){
                 i++;
                 if(entrada[i]=='-')
@@ -29,7 +30,7 @@ void Acciones::leerComando(char *entrada)
         }
         entrada[i] = tolower(entrada[i]);
         cmd+=entrada[i];
-        if(!noMinus && (cmd.compare("mkgrp")==0 || cmd.compare("rmgrp")==0)){
+        if(!noMinus && (cmd.compare("mkgrp")==0 || cmd.compare("rmgrp")==0 || cmd.compare("mkfile")==0 || cmd.compare("mkdir")==0)){
             noMinus=true;
         }
         i++;
@@ -103,7 +104,9 @@ int Acciones::getSpaceToken(char* cmd, int i,char* token)
 void Acciones::ejecutarComando(Token token[]){
     int i = 0;
     string nomComando=token[i].value;
-
+    if(strcmp(nomComando.c_str(),"pause")==0){
+        comando.funciones.continuar();
+    }
     //Parametros a enviar
     string path="";
     string id="";
@@ -123,6 +126,7 @@ void Acciones::ejecutarComando(Token token[]){
     while(strcmp(token[i+1].value,"")!=0)
     {
         i++;
+
         if(strcmp(nomComando.c_str(),"exec")==0){
             if(strcmp(token[i].value,"-path")==0)
             {i++;
@@ -361,6 +365,70 @@ void Acciones::ejecutarComando(Token token[]){
                 p=true;
             }
         }
+        if(strcmp(nomComando.c_str(),"mkfile")==0){
+            if(strcmp(token[i].value,"-path")==0)
+            {i++;
+                path = token[i].value;
+            }
+            if(strcmp(token[i].value,"-size")==0)
+            {i++;
+                 size = atoi(token[i].value);
+                 if(size<=0){
+                     printf("ERROR!,mkfile, El tamaño debe ser positivo o cero.\n");
+                     return;
+                 }
+            }
+            if(strcmp(token[i].value,"-cont")==0)
+            {i++;
+                name = token[i].value;
+            }
+            if(strcmp(token[i].value,"-p")==0)
+            {
+                p=true;
+            }
+        }if(strcmp(nomComando.c_str(),"cat")==0)
+        {
+            if(strcmp(token[i].value,"-file")==0)
+            {i++;
+                path = token[i].value;
+                comando.cat(path);
+            }else
+            printf("ERROR!,cat, faltan parametros\n");
+
+            return;
+        }if(strcmp(nomComando.c_str(),"recovery")==0)
+        {
+            if(strcmp(token[i].value,"-id")==0)
+            {i++;
+                id = token[i].value;
+                StringVector comandos=comando.recovery(id);
+                if(comandos.size()==0){
+                    cout<<"Recovery no encontro comandos asociados al id: "<<id<<endl;
+                    return;
+                }
+                for(unsigned int i=0;i<comandos.size();i++){
+                    string com=comandos.at(i);
+                    char entrada[1000];memset(entrada,0,sizeof entrada);
+                    strcpy(entrada,com.c_str());
+                    leerComando(entrada);
+                }
+                cout<<"Recovery exitoso!id: "<<id<<endl;
+            }else
+            printf("ERROR!,recovery, faltan parametros\n");
+
+            return;
+        }if(strcmp(nomComando.c_str(),"loss")==0)
+        {
+            if(strcmp(token[i].value,"-id")==0)
+            {i++;
+                id = token[i].value;
+                comando.loss(id);
+            }else
+            printf("ERROR!,loss, faltan parametros\n");
+
+            return;
+        }
+
 
     }//fin while
 
@@ -432,6 +500,12 @@ void Acciones::ejecutarComando(Token token[]){
             return;
         }else
             cout<<"ERROR!,mkdir, faltan parametros"<<endl;
+    }else if(strcmp(nomComando.c_str(),"mkfile")==0){
+        if(path.compare("")!=0){
+            comando.mkfile(path,p,name,size);
+            return;
+        }else
+            cout<<"ERROR!,mkdir, faltan parametros"<<endl;
     }
 
 }
@@ -462,7 +536,6 @@ void Acciones::ejecutarScript(const char* path)
     fclose(ptr_file);
     printf("\n");
 }
-
 
 
 

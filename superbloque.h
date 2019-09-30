@@ -24,7 +24,7 @@ struct Superbloque
 };
 struct Journaling
 {
-    char cadena[50];
+    char cadena[200];
 };
 struct Inodo
 {
@@ -48,6 +48,7 @@ struct Log_usuario
     int log=0;
     int uid;
     int gid;
+    int partStart;
     string path;
     string partName;
     Superbloque superbloque;

@@ -13,7 +13,7 @@ public:
     StringVector Explode(const std::string & str, char separator );
     int numAleatorio();
     void createDirs(const char* path);
-
+    void continuar();
     //funciones sobre estructs
     Partition getNewPartition();
     MBR getNewMBR();
@@ -41,7 +41,7 @@ public:
     void setBitMapsInicio(int n,int posI_inodo,int posI_bloque,string path);
     Superbloque getSuperbloque(string path,string partName);
     void setSuperbloque(string path,Superbloque superbloque,int pos);
-    bool formatearTabla_inodos_bloques(string path,Superbloque superbloque);
+    bool formatearTabla_inodos_bloques(string path, Superbloque superbloque, int journStart);
     bool ingresarInodo(string path, Inodo inodo, int pos, int num);
     bool ingresar_bitmap(string path, int pos, int num);
 
@@ -60,6 +60,14 @@ public:
     int buscarInodoCarpeta(string path, string nombre, Superbloque superbloque, Inodo raiz);
     bool Fmkdir(Inodo inodo, string dir, string path, Superbloque superbloque);
     int buscartInodoLibreDentroInodoCarpeta(string path,Superbloque superbloque,Inodo inodoAux);
+    string leerArchivoFisico(string path);
+    bool Fmkfile(Inodo inodo, string dir, string path, Superbloque superbloque);
+    bool Fcat(string dir, string path, Superbloque superbloque, string *text);
+    string leerArchivoCat(string path, Superbloque superbloque,int numInodo);
+
+    void Fjournaling(string path, string log, int pos);
+    string Frecovery(string path,int pos);
+    bool Floss(string path,Superbloque superbloque);
 };
 
 #endif // FUNCIONES_H

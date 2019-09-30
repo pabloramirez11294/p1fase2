@@ -54,7 +54,12 @@ void Funciones::createDirs(const char* path)
         }
     }
 }
-
+void Funciones::continuar()
+{
+    __fpurge(stdin);
+    printf("\t Presione una tecla para continuar:");
+    getchar();
+}
 
 Partition Funciones::getNewPartition()
 {
@@ -456,7 +461,7 @@ void Funciones::setSuperbloque(string path,Superbloque superbloque,int pos){
     fclose(ptr_file);
 }
 
-bool Funciones::formatearTabla_inodos_bloques(string path,Superbloque superbloque){
+bool Funciones::formatearTabla_inodos_bloques(string path,Superbloque superbloque,int journStart){
     FILE *ptr_file;
     ptr_file = fopen(path.c_str(),"rb+");
     if(!ptr_file)
@@ -476,15 +481,33 @@ bool Funciones::formatearTabla_inodos_bloques(string path,Superbloque superbloqu
         if(count>=posIniBloque)
             break;
         fwrite(&val,sizeof(val),sizeof(Inodo),ptr_file);
-        count++;
+        count+=sizeof(Inodo);
     }
 
     while(true){
         if(count>posFin)
             break;
         fwrite(&val,sizeof(val),sizeof(Barchivo),ptr_file);
-        count++;
+        count+=sizeof(Barchivo);
     }
+    //formatear journaling
+
+    int finJour=journStart+superbloque.s_inodes_count;
+    count=journStart+sizeof(Superbloque);
+    fseek(ptr_file,journStart+sizeof(Superbloque),SEEK_SET);
+    while(true){
+        if(count>finJour)
+            break;
+        fwrite(&val,sizeof(val),sizeof(Journaling),ptr_file);
+        count+=sizeof(Journaling);
+    }
+
+    //colocar cantidad de journaling
+
+    int cantidad=0;
+    fseek(ptr_file,journStart+sizeof(Superbloque),SEEK_SET);
+    fwrite(&cantidad,sizeof(int),1,ptr_file);
+
     fclose(ptr_file);
     return true;
 }
@@ -833,11 +856,238 @@ bool Funciones::Fmkdir(Inodo inodo,string dir, string path,Superbloque superbloq
 }
 
 
+string Funciones::leerArchivoFisico(string path){
+    string cadena="";
+    string txt="";
+    ifstream datos(path);
+    if(datos.fail()){
+        cout<<"archivo no existe"<<endl;
+        return "";
+    }else{
+        while(!datos.eof()){
+            getline(datos,cadena);
+            txt+=cadena+"\n";
+        }
+    }
+    datos.close();
+    txt.erase(txt.end()-1);
+    txt.erase(txt.end()-1);
+    return txt;
+}
 
 
+bool Funciones::Fmkfile(Inodo inodo, string dir, string path, Superbloque superbloque){
+    StringVector l1=Explode(dir,'/');
+    string nombre = l1.at(l1.size()-1);
+    l1.erase(l1.end());
+    Inodo inodoAux = this->getInode(path,superbloque.s_inode_start,0);
+    int numInodo=0;
+    for(unsigned int i=0;i<l1.size();i++){
+        string nombreAux=l1.at(i);
+        numInodo=buscarInodoCarpeta(path,nombreAux,superbloque,inodoAux);
+        if(numInodo==-1){
+            return false;
+        }
+        inodoAux= this->getInode(path,superbloque.s_inode_start,numInodo);
+        if(inodoAux.i_type==1){
+            return false;
+        }
+    }
+    if(numInodo==-1){
+        return false;
+    }
+
+    //ingresar numinodo e inodo
+    int numInodoNuevo=this->inodoLibre(path,superbloque);
+    if(numInodoNuevo==-1){
+        return false;
+    }
+
+    for(int i=0;i<15;i++){
+        if(inodoAux.i_block[i]!=-1){
+            Bcarpeta carpeta=this->getBcarpeta(path,superbloque.s_block_start,inodoAux.i_block[i]);
+            for(int y=0;y<4;y++){
+                Content *cont = &carpeta.b_content[y];
+                if(cont->b_inodo==-1){
+                    cont->b_inodo=numInodoNuevo;
+                    strcpy(cont->name,nombre.c_str());
+                    this->ingresarBloqueCarpeta(path,carpeta,superbloque.s_block_start,inodoAux.i_block[i]);
+                    goto forext;
+                }
+            }
+
+        }else{
+            Bcarpeta carpeta;
+            for(int i=0;i<4;i++){
+                carpeta.b_content[i].b_inodo=-1;
+                strcpy(carpeta.b_content[i].name,"-");
+            }
+            int numCarpeta=this->bloqueLibre(path,superbloque);
+            carpeta.b_content[0].b_inodo=numInodoNuevo;
+            strcpy(carpeta.b_content[0].name,nombre.c_str());
+            if(!(ingresarBloqueCarpeta(path,carpeta,superbloque.s_block_start,numCarpeta) && ingresar_bitmap(path,superbloque.s_bm_block_start,numCarpeta))){
+                return false;
+            }
+            inodoAux.i_block[i]=numCarpeta;
+            break;
+        }
+        if(i==14){
+            return false;
+        }
+    }
+    forext:
+    //actualizar inodoPadre
+    if(!(ingresarInodo(path,inodoAux,superbloque.s_inode_start,numInodo))){
+        return false;
+    }
+
+    //ingresar inodoArchivo
+    if(!(ingresarInodo(path,inodo,superbloque.s_inode_start,numInodoNuevo) && ingresar_bitmap(path,superbloque.s_bm_inode_start,numInodoNuevo))){
+        return false;
+    }
+    return true;
+}
 
 
+bool Funciones::Fcat(string dir, string path, Superbloque superbloque,string *text){
+    StringVector l1=Explode(dir,'/');
+    string nombre = l1.at(l1.size()-1);
+    l1.erase(l1.end());
+    Inodo inodoAux = this->getInode(path,superbloque.s_inode_start,0);
+    int numInodo=0;
+    for(unsigned int i=0;i<l1.size();i++){
+        string nombreAux=l1.at(i);
+        numInodo=buscarInodoCarpeta(path,nombreAux,superbloque,inodoAux);
+        if(numInodo==-1){
+            return false;
+        }
+        inodoAux= this->getInode(path,superbloque.s_inode_start,numInodo);
+        if(inodoAux.i_type==1){
+            return false;
+        }
+    }
+    if(numInodo==-1){
+        return false;
+    }
+    //buscar en el inodo padre
+    int numInodoArchivo=-1;
+    for(int i=0;i<15;i++){
+        if(inodoAux.i_block[i]!=-1){
+            Bcarpeta carpeta=this->getBcarpeta(path,superbloque.s_block_start,inodoAux.i_block[i]);
+            for(int y=0;y<4;y++){
+                Content *cont = &carpeta.b_content[y];
+                if(cont->b_inodo!=-1 && nombre.compare(cont->name)==0){
+                    numInodoArchivo=cont->b_inodo;
+                    goto forext;
+                }
+            }
+
+        }
+        if(i==14){
+            return false;
+        }
+    }
+    forext:
+    if(numInodoArchivo==-1)
+        return false;
+    *text=this->leerArchivoCat(path,superbloque,numInodoArchivo);
+
+    return true;
+}
+
+string Funciones::leerArchivoCat(string path, Superbloque superbloque, int numInodo){
+    Inodo inodo = getInode(path,superbloque.s_inode_start,numInodo);
+    string txt="";
+    for(int i=0;i<15;i++){
+        int numB=inodo.i_block[i];
+        if(numB==-1){
+            break;
+        }
+        Barchivo archivo=getBarchivo(path,superbloque.s_block_start,numB);
+        txt.append(archivo.b_content,0,64);
+    }
+    return txt;
+}
 
 
+void Funciones::Fjournaling(string path, string log,int pos){
+    Journaling jour;
+    int cantidad=0;
+    strcpy(jour.cadena,log.c_str());
+    FILE *ptr_file;
+    ptr_file = fopen(path.c_str(),"rb+");
+    if(!ptr_file)
+    {
+        return;
+    }
+    fseek(ptr_file,pos+sizeof(Superbloque),SEEK_SET);
+    fread(&cantidad,sizeof (int),1,ptr_file);
 
+    fseek(ptr_file,sizeof(Journaling)*cantidad,SEEK_CUR);
+    fwrite(&jour,sizeof(Journaling),1,ptr_file);
 
+    cantidad++;
+    fseek(ptr_file,pos+sizeof(Superbloque),SEEK_SET);
+    fwrite(&cantidad,sizeof(int),1,ptr_file);
+    fclose(ptr_file);
+}
+
+string Funciones::Frecovery(string path, int pos){
+    Journaling jour;
+    int cantidad=0;
+    FILE *ptr_file;
+    ptr_file = fopen(path.c_str(),"rb+");
+    if(!ptr_file)
+    {
+        return "";
+    }
+    fseek(ptr_file,pos+sizeof(Superbloque),SEEK_SET);
+    fread(&cantidad,sizeof (int),1,ptr_file);
+
+    string texto="";
+    int contador=0;
+    while(!feof(ptr_file)){
+        if(contador==cantidad)
+            break;
+        fread(&jour, sizeof(jour), 1, ptr_file);
+        texto.append(jour.cadena);
+        texto.append("\n");
+        contador++;
+    }
+    fclose(ptr_file);
+    return texto;
+}
+
+bool Funciones::Floss(string path,Superbloque superbloque){
+    FILE *ptr_file;
+    ptr_file = fopen(path.c_str(),"rb+");
+    if(!ptr_file)
+    {
+        return false;
+    }
+    char val='\0';
+    int count;
+    int posIni = superbloque.s_inode_start;
+    count = posIni;
+    int posIniBloque =superbloque.s_block_start ;
+    int posFin = posIniBloque + (sizeof(Barchivo)*superbloque.s_blocks_count);
+
+    fseek(ptr_file,posIni,SEEK_SET);
+
+    while(true){
+        if(count>=posIniBloque)
+            break;
+        fwrite(&val,sizeof(val),sizeof(Inodo),ptr_file);
+        count+=sizeof(Inodo);
+    }
+
+    while(true){
+        if(count>posFin)
+            break;
+        fwrite(&val,sizeof(val),sizeof(Barchivo),ptr_file);
+        count+=sizeof(Barchivo);
+    }
+
+    fclose(ptr_file);
+    return true;
+}

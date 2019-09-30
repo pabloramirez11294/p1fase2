@@ -29,6 +29,10 @@ public:
     void mkusr(string grp, string usr, string pwd);
     void rmusr(string name);
     void mkdir(string dir, bool p);
+    void mkfile(string dir, bool p,string cont, int size);
+    void cat(string file);
+    StringVector recovery(string id);
+    void loss(string id);
 };
 
 #endif // COMANDO_H
